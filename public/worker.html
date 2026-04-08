@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Worker Panel</title>
+</head>
+
+<body>
+
+<h2>👷 Worker Attendance</h2>
+
+<input id="id" placeholder="Worker ID">
+<input id="name" placeholder="Name">
+
+<button onclick="mark('Present')">✅ Present</button>
+<button onclick="mark('Absent')">❌ Absent</button>
+
+<script>
+
+const token = localStorage.getItem("token");
+
+function mark(status) {
+  fetch("/mark", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token
+    },
+    body: JSON.stringify({
+      id: document.getElementById("id").value,
+      name: document.getElementById("name").value,
+      status
+    })
+  })
+  .then(res => res.json())
+  .then(() => alert("Saved ✅"));
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "password": "admin123",
+      "role": "admin"
+    },
+    {
+      "username": "101",
+      "password": "101",
+      "role": "worker"
+    }
+  ],
+  "workers": [
+    {
+      "id": "101",
+      "date": "4/6/2026"
+    },
+    {
+      "id": "102",
+      "date": "4/8/2026"
+    },
+    {
+      "id": "102",
+      "date": "4/8/2026"
+    }
+  ]
+}

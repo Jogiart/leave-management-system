@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+  font-family: Arial;
+  background: linear-gradient(to right, #1e3c72, #2a5298);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+.box {
+  background:white;
+  padding:30px;
+  border-radius:10px;
+  text-align:center;
+}
+input {
+  display:block;
+  margin:10px 0;
+  padding:10px;
+  width:200px;
+}
+button {
+  padding:10px;
+  width:100%;
+  background:#1e3c72;
+  color:white;
+  border:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+  <h2>Uni Cal Labs</h2>
+  <input id="u" placeholder="Username">
+  <input id="p" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+</div>
+
+<script>
+function login() {
+  fetch("/login", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      username: u.value,
+      password: p.value
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      if (data.role === "admin") {
+        window.location = "admin.html";
+      } else {
+        window.location = "worker.html";
+      }
+    } else {
+      alert("Invalid Login ❌");
+    }
+  });
+}
+</script>
+
+</body>
+</html>

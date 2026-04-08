@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial;
+      display: flex;
+    }
+
+    .sidebar {
+      width: 220px;
+      background: #111827;
+      color: white;
+      height: 100vh;
+      padding: 20px;
+    }
+
+    .sidebar h2 { margin-bottom: 30px; }
+
+    .sidebar button {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: none;
+      background: #1f2937;
+      color: white;
+      cursor: pointer;
+    }
+
+    .main {
+      flex: 1;
+      padding: 20px;
+      background: #f3f4f6;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+    }
+
+    input {
+      padding: 10px;
+      width: 200px;
+    }
+
+    .btn {
+      padding: 10px;
+      border: none;
+      margin-left: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .pdf { background: blue; color: white; }
+  </style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <h2>🏢 Uni Cal Labs</h2>
+
+  <button onclick="loadWorkers()">👷 Workers</button>
+  <button onclick="loadChart()">📊 Analytics</button>
+  <button onclick="logout()">🚪 Logout</button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SEARCH -->
+  <div class="card">
+    <h3>🔍 Worker Search</h3>
+
+    <input type="text" id="search" placeholder="Enter ID..." oninput="search()">
+
+    <!-- ✅ PDF BUTTON ADDED -->
+    <button class="btn pdf" onclick="downloadReport()">📄 Download Report</button>
+
+    <div id="result"></div>
+  </div>
+
+  <!-- CHART -->
+  <div class="card">
+    <h3>📊 Attendance Analytics</h3>
+    <canvas id="chart"></canvas>
+  </div>
+
+</div>
+
+<script>
+
+const token = localStorage.getItem("token");
+
+// 🚪 LOGOUT
+function logout() {
+  localStorage.removeItem("token");
+  window.location.href = "login.html";
+}
+
+// 👷 LOAD WORKERS
+function loadWorkers() {
+  fetch("/workers", {
+    headers: { Authorization: token }
+  })
+  .then(res => res.json())
+  .then(showData);
+}
+
+// 🔍 SEARCH
+function search() {
+  const id = document.getElementById("search").value;
+
+  fetch("/workers", {
+    headers: { Authorization: token }
+  })
+  .then(res => res.json())
+  .then(data => {
+    const filtered = data.filter(w => w.worker_id.includes(id));
+    showData(filtered);
+  });
+}
+
+// 🧾 SHOW DATA FUNCTION
+function showData(data) {
+  document.getElementById("result").innerHTML =
+    data.map(w => `<p>${w.worker_id} - ${w.name} (${w.status})</p>`).join("");
+}
+
+// 📊 CHART
+let chart;
+
+function loadChart() {
+  fetch("/workers", {
+    headers: { Authorization: token }
+  })
+  .then(res => res.json())
+  .then(data => {
+
+    let present = 0, absent = 0;
+
+    data.forEach(w => {
+      if (w.status === "Present") present++;
+      else absent++;
+    });
+
+    const ctx = document.getElementById("chart");
+
+    // ✅ FIX: destroy old chart
+    if (chart) chart.destroy();
+
+    chart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Present', 'Absent'],
+        datasets: [{
+          data: [present, absent],
+          backgroundColor: ['green', 'red']
+        }]
+      }
+    });
+
+  });
+}
+
+// 📄 DOWNLOAD PDF
+function downloadReport() {
+  const id = document.getElementById("search").value;
+
+  if (!id) {
+    alert("Enter Worker ID first");
+    return;
+  }
+
+  window.open(`/report/${id}`, "_blank");
+}
+
+</script>
+
+</body>
+</html>
