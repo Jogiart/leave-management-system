@@ -1,6 +1,8 @@
 const express = require("express");
 const mysql = require("mysql2");
 const jwt = require("jsonwebtoken");
+const PDFDocument = require("pdfkit");
+const nodemailer = require("nodemailer");
 
 const app = express();
 const SECRET = "mysecretkey";
@@ -8,25 +10,26 @@ const SECRET = "mysecretkey";
 app.use(express.json());
 app.use(express.static("public"));
 
-// ✅ DATABASE CONNECTION
+/* ================= DATABASE ================= */
+
+// ✅ Use ENV variables (Railway)
 const db = mysql.createConnection({
-  host: "metro.proxy.rlwy.net",
-  user: "root",
-  password: "UteoWMaLEWrSUvJUnJYbALnRsPtcaRcT",
-  database: "railway",
-  port: 20680
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT
 });
 
 db.connect(err => {
-  if (err) {
-    console.error("❌ DB ERROR:", err);
-  } else {
-    console.log("✅ MySQL Connected");
-  }
+  if (err) console.error("❌ DB ERROR:", err);
+  else console.log("✅ MySQL Connected");
 });
 
 
-// 🔐 VERIFY TOKEN (🔥 THIS WAS MISSING)
+/* ================= AUTH ================= */
+
+// 🔐 VERIFY TOKEN
 function verifyToken(req, res, next) {
   const token = req.headers["authorization"];
 
@@ -35,9 +38,7 @@ function verifyToken(req, res, next) {
   }
 
   jwt.verify(token, SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(401).json({ message: "Invalid token" });
-    }
+    if (err) return res.status(401).json({ message: "Invalid token" });
 
     req.user = decoded;
     next();
@@ -59,17 +60,14 @@ app.post("/login", (req, res) => {
       if (result.length > 0) {
 
         const token = jwt.sign(
-          {
-            username: result[0].username,
-            role: result[0].role
-          },
+          { username: result[0].username, role: result[0].role },
           SECRET,
           { expiresIn: "1h" }
         );
 
         res.json({
           success: true,
-          token: token,
+          token,
           role: result[0].role
         });
 
@@ -81,7 +79,9 @@ app.post("/login", (req, res) => {
 });
 
 
-// 👷 GET WORKERS (🔒 Protected)
+/* ================= WORKERS ================= */
+
+// 👷 GET ALL
 app.get("/workers", verifyToken, (req, res) => {
   db.query("SELECT * FROM attendance", (err, result) => {
     if (err) return res.send(err);
@@ -89,8 +89,15 @@ app.get("/workers", verifyToken, (req, res) => {
   });
 });
 
+// ➕ MARK ATTENDANCE (✅ FIXED + EMAIL)
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: "yourgmail@gmail.com",        // 🔁 change
+    pass: "your_app_password"           // 🔁 change
+  }
+});
 
-// ➕ MARK ATTENDANCE (🔒 Protected)
 app.post("/mark", verifyToken, (req, res) => {
   const { id, name, status } = req.body;
 
@@ -98,14 +105,24 @@ app.post("/mark", verifyToken, (req, res) => {
     "INSERT INTO attendance (worker_id, name, date, status) VALUES (?, ?, CURDATE(), ?)",
     [id, name, status],
     (err) => {
+
       if (err) return res.send(err);
+
+      // 📧 EMAIL ALERT
+      transporter.sendMail({
+        to: "receiver@gmail.com",   // 🔁 change
+        subject: "Attendance Update",
+        text: `${name} marked ${status}`
+      });
+
       res.json({ success: true });
     }
   );
 });
 
 
-// 📊 GET STATS (🔒 Protected)
+/* ================= STATS ================= */
+
 app.get("/stats/:id", verifyToken, (req, res) => {
   const id = req.params.id;
 
@@ -129,16 +146,7 @@ app.get("/stats/:id", verifyToken, (req, res) => {
 });
 
 
-// DEFAULT
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/public/login.html");
-});
-
-
-app.listen(3000, () => {
-  console.log("🚀 Server running at http://localhost:3000");
-});
-const PDFDocument = require("pdfkit");
+/* ================= PDF REPORT ================= */
 
 app.get("/report/:id", verifyToken, (req, res) => {
   const id = req.params.id;
@@ -148,11 +156,14 @@ app.get("/report/:id", verifyToken, (req, res) => {
     [id],
     (err, data) => {
 
+      if (err) return res.send(err);
+
       const doc = new PDFDocument();
+
       res.setHeader("Content-Type", "application/pdf");
       doc.pipe(res);
 
-      doc.fontSize(20).text("Attendance Report\n\n");
+      doc.fontSize(18).text("Attendance Report\n\n");
 
       data.forEach(row => {
         doc.text(`${row.date} - ${row.status}`);
@@ -162,30 +173,17 @@ app.get("/report/:id", verifyToken, (req, res) => {
     }
   );
 });
-const nodemailer = require("nodemailer");
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "yourgmail@gmail.com",
-    pass: "your_app_password"
-  }
+
+/* ================= DEFAULT ================= */
+
+app.get("/", (req, res) => {
+  res.sendFile(__dirname + "/public/login.html");
 });
-app.post("/mark", verifyToken, (req, res) => {
-  const { id, name, status } = req.body;
 
-  db.query(
-    "INSERT INTO attendance (worker_id, name, date, status) VALUES (?, ?, CURDATE(), ?)",
-    [id, name, status],
-    () => {
 
-      transporter.sendMail({
-        to: "receiver@gmail.com",
-        subject: "Attendance Update",
-        text: `${name} marked ${status}`
-      });
+/* ================= SERVER ================= */
 
-      res.json({ success: true });
-    }
-  );
+app.listen(3000, () => {
+  console.log("🚀 Server running at http://localhost:3000");
 });
