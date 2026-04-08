@@ -42,29 +42,38 @@ button {
 </div>
 
 <script>
-function login() {
-  fetch("/login", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({
-      username: u.value,
-      password: p.value
+  function login() {
+  
+    const username = document.getElementById("u").value;
+    const password = document.getElementById("p").value;
+  
+    fetch("/login", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ username, password })
     })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      if (data.role === "admin") {
-        window.location = "admin.html";
+    .then(res => res.json())
+    .then(data => {
+  
+      console.log(data); // 🔍 DEBUG
+  
+      if (data.success) {
+  
+        // ✅ Save token (IMPORTANT)
+        localStorage.setItem("token", data.token);
+  
+        if (data.role === "admin") {
+          window.location = "admin.html";
+        } else {
+          window.location = "worker.html";
+        }
+  
       } else {
-        window.location = "worker.html";
+        alert("Invalid Login ❌");
       }
-    } else {
-      alert("Invalid Login ❌");
-    }
-  });
-}
-</script>
+    });
+  }
+  </script>
 
 </body>
 </html>

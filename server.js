@@ -4,21 +4,23 @@ const jwt = require("jsonwebtoken");
 const PDFDocument = require("pdfkit");
 const nodemailer = require("nodemailer");
 
+require("dotenv").config(); // ✅ load .env (for local)
+
 const app = express();
-const SECRET = "mysecretkey";
+const SECRET = process.env.JWT_SECRET || "mysecretkey";
 
 app.use(express.json());
 app.use(express.static("public"));
 
 /* ================= DATABASE ================= */
 
-// ✅ Use ENV variables (Railway)
+// ✅ Works for BOTH local + Railway
 const db = mysql.createConnection({
-  host: process.env.MYSQLHOST,
-  user: process.env.MYSQLUSER,
-  password: process.env.MYSQLPASSWORD,
-  database: process.env.MYSQLDATABASE,
-  port: process.env.MYSQLPORT
+  host: process.env.MYSQLHOST || "metro.proxy.rlwy.net",
+  user: process.env.MYSQLUSER || "root",
+  password: process.env.MYSQLPASSWORD || "UteoWMaLEWrSUvJUnJYbALnRsPtcaRcT",
+  database: process.env.MYSQLDATABASE || "railway",
+  port: process.env.MYSQLPORT || 20680
 });
 
 db.connect(err => {
@@ -89,15 +91,16 @@ app.get("/workers", verifyToken, (req, res) => {
   });
 });
 
-// ➕ MARK ATTENDANCE (✅ FIXED + EMAIL)
+// 📧 EMAIL SETUP
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "yourgmail@gmail.com",        // 🔁 change
-    pass: "your_app_password"           // 🔁 change
+    user: process.env.EMAIL_USER || "yourgmail@gmail.com",
+    pass: process.env.EMAIL_PASS || "your_app_password"
   }
 });
 
+// ➕ MARK ATTENDANCE
 app.post("/mark", verifyToken, (req, res) => {
   const { id, name, status } = req.body;
 
@@ -110,7 +113,7 @@ app.post("/mark", verifyToken, (req, res) => {
 
       // 📧 EMAIL ALERT
       transporter.sendMail({
-        to: "receiver@gmail.com",   // 🔁 change
+        to: process.env.EMAIL_TO || "receiver@gmail.com",
         subject: "Attendance Update",
         text: `${name} marked ${status}`
       });
@@ -184,6 +187,9 @@ app.get("/", (req, res) => {
 
 /* ================= SERVER ================= */
 
-app.listen(3000, () => {
-  console.log("🚀 Server running at http://localhost:3000");
+// ✅ Railway uses PORT env
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
