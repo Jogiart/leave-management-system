@@ -3,8 +3,7 @@ const mysql = require("mysql2");
 const jwt = require("jsonwebtoken");
 const PDFDocument = require("pdfkit");
 const nodemailer = require("nodemailer");
-
-require("dotenv").config(); // ✅ load .env (for local)
+require("dotenv").config();
 
 const app = express();
 const SECRET = process.env.JWT_SECRET || "mysecretkey";
@@ -14,24 +13,24 @@ app.use(express.static("public"));
 
 /* ================= DATABASE ================= */
 
-// ✅ Works for BOTH local + Railway
 const db = mysql.createConnection({
-  host: process.env.MYSQLHOST || "metro.proxy.rlwy.net",
-  user: process.env.MYSQLUSER || "root",
-  password: process.env.MYSQLPASSWORD || "UteoWMaLEWrSUvJUnJYbALnRsPtcaRcT",
-  database: process.env.MYSQLDATABASE || "railway",
-  port: process.env.MYSQLPORT || 20680
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT
 });
 
 db.connect(err => {
-  if (err) console.error("❌ DB ERROR:", err);
-  else console.log("✅ MySQL Connected");
+  if (err) {
+    console.error("❌ DB ERROR:", err);
+  } else {
+    console.log("✅ MySQL Connected");
+  }
 });
-
 
 /* ================= AUTH ================= */
 
-// 🔐 VERIFY TOKEN
 function verifyToken(req, res, next) {
   const token = req.headers["authorization"];
 
@@ -47,7 +46,6 @@ function verifyToken(req, res, next) {
   });
 }
 
-
 // 🔐 LOGIN
 app.post("/login", (req, res) => {
   const { username, password } = req.body;
@@ -56,11 +54,12 @@ app.post("/login", (req, res) => {
     "SELECT * FROM users WHERE username=? AND password=?",
     [username, password],
     (err, result) => {
-
-      if (err) return res.send(err);
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ success: false });
+      }
 
       if (result.length > 0) {
-
         const token = jwt.sign(
           { username: result[0].username, role: result[0].role },
           SECRET,
@@ -72,7 +71,6 @@ app.post("/login", (req, res) => {
           token,
           role: result[0].role
         });
-
       } else {
         res.json({ success: false });
       }
@@ -80,27 +78,30 @@ app.post("/login", (req, res) => {
   );
 });
 
-
 /* ================= WORKERS ================= */
 
-// 👷 GET ALL
 app.get("/workers", verifyToken, (req, res) => {
   db.query("SELECT * FROM attendance", (err, result) => {
-    if (err) return res.send(err);
+    if (err) {
+      console.error(err);
+      return res.status(500).json([]);
+    }
     res.json(result);
   });
 });
 
-// 📧 EMAIL SETUP
+/* ================= EMAIL ================= */
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER || "yourgmail@gmail.com",
-    pass: process.env.EMAIL_PASS || "your_app_password"
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
-// ➕ MARK ATTENDANCE
+/* ================= MARK ================= */
+
 app.post("/mark", verifyToken, (req, res) => {
   const { id, name, status } = req.body;
 
@@ -108,21 +109,27 @@ app.post("/mark", verifyToken, (req, res) => {
     "INSERT INTO attendance (worker_id, name, date, status) VALUES (?, ?, CURDATE(), ?)",
     [id, name, status],
     (err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ success: false });
+      }
 
-      if (err) return res.send(err);
-
-      // 📧 EMAIL ALERT
-      transporter.sendMail({
-        to: process.env.EMAIL_TO || "receiver@gmail.com",
-        subject: "Attendance Update",
-        text: `${name} marked ${status}`
-      });
+      // ✅ Email (SAFE - won't crash app)
+      transporter.sendMail(
+        {
+          to: process.env.EMAIL_TO,
+          subject: "Attendance Update",
+          text: `${name} marked ${status}`
+        },
+        (error) => {
+          if (error) console.log("Mail error:", error);
+        }
+      );
 
       res.json({ success: true });
     }
   );
 });
-
 
 /* ================= STATS ================= */
 
@@ -133,8 +140,10 @@ app.get("/stats/:id", verifyToken, (req, res) => {
     "SELECT status, COUNT(*) as count FROM attendance WHERE worker_id=? GROUP BY status",
     [id],
     (err, result) => {
-
-      if (err) return res.send(err);
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ present: 0, absent: 0 });
+      }
 
       let present = 0, absent = 0;
 
@@ -148,8 +157,7 @@ app.get("/stats/:id", verifyToken, (req, res) => {
   );
 });
 
-
-/* ================= PDF REPORT ================= */
+/* ================= PDF ================= */
 
 app.get("/report/:id", verifyToken, (req, res) => {
   const id = req.params.id;
@@ -158,8 +166,10 @@ app.get("/report/:id", verifyToken, (req, res) => {
     "SELECT * FROM attendance WHERE worker_id=?",
     [id],
     (err, data) => {
-
-      if (err) return res.send(err);
+      if (err) {
+        console.error(err);
+        return res.status(500).send("Error");
+      }
 
       const doc = new PDFDocument();
 
@@ -177,17 +187,14 @@ app.get("/report/:id", verifyToken, (req, res) => {
   );
 });
 
-
 /* ================= DEFAULT ================= */
 
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/public/login.html");
 });
 
-
 /* ================= SERVER ================= */
 
-// ✅ Railway uses PORT env
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
